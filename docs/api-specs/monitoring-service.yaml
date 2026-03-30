@@ -1,0 +1,245 @@
+openapi: 3.0.3
+info:
+  title: Monitoring Service API
+  description: |
+    Handles media evidence upload, symptom report submission, and schedule confirmation validation.
+    MediaEvidence is a shared class used by both MedicationSchedule and SymptomReport.
+    Protocol: REST (client-facing), gRPC (internal - GetMissedSchedules)
+    Kafka events consumed:
+      - appointment_report.created → stores AppointmentReportRef locally
+    Kafka events published:
+      - symptom_report.created → consumer: Notification Service
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5006
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /media-evidence:
+    post:
+      summary: Upload media evidence
+      description: |
+        Upload photo or video evidence linked to a MedicationSchedule or SymptomReport.
+        Use referenceType to specify which entity this evidence belongs to.
+      operationId: uploadMediaEvidence
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MediaEvidenceCreate'
+      responses:
+        '201':
+          description: Media evidence uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaEvidence'
+
+    get:
+      summary: Get media evidence by reference
+      operationId: getMediaEvidence
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: referenceId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: referenceType
+          required: true
+          schema:
+            type: string
+            enum: [MEDICATION_SCHEDULE, SYMPTOM_REPORT]
+      responses:
+        '200':
+          description: List of media evidence
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MediaEvidence'
+
+  /symptom-reports:
+    get:
+      summary: Get symptom reports by appointment report
+      operationId: getSymptomReports
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: appointmentReportId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of symptom reports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SymptomReport'
+
+    post:
+      summary: Submit a schedule-triggered symptom report
+      description: |
+        Validates appointmentReportId against local AppointmentReportRef (no cross-service call needed).
+        Publishes Kafka event: symptom_report.created → Notification Service alerts doctor
+      operationId: submitSymptomReport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SymptomReportCreate'
+      responses:
+        '201':
+          description: Symptom report submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SymptomReport'
+
+  /symptom-reports/self:
+    post:
+      summary: Submit a self-initiated symptom report
+      description: |
+        Patient proactively submits symptom report at any time during treatment.
+        Validates appointmentReportId against local AppointmentReportRef (no cross-service call needed).
+        Publishes Kafka event: symptom_report.created → Notification Service alerts doctor
+      operationId: submitSelfSymptomReport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SymptomReportCreate'
+      responses:
+        '201':
+          description: Self-initiated symptom report submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SymptomReport'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    MediaEvidence:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        referenceId:
+          type: string
+          format: uuid
+          description: ID of MedicationSchedule or SymptomReport
+        referenceType:
+          type: string
+          enum: [MEDICATION_SCHEDULE, SYMPTOM_REPORT]
+        imageUrl:
+          type: string
+          example: https://storage.example.com/evidence/photo.jpg
+        videoUrl:
+          type: string
+          example: https://storage.example.com/evidence/video.mp4
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+
+    MediaEvidenceCreate:
+      type: object
+      required: [referenceId, referenceType]
+      properties:
+        referenceId:
+          type: string
+          format: uuid
+        referenceType:
+          type: string
+          enum: [MEDICATION_SCHEDULE, SYMPTOM_REPORT]
+        imageUrl:
+          type: string
+        videoUrl:
+          type: string
+        note:
+          type: string
+
+    SymptomReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        appointmentReportId:
+          type: string
+          format: uuid
+        source:
+          type: string
+          enum: [SCHEDULE_REQUIRED, PATIENT_INITIATED]
+        response:
+          type: string
+          example: Mild swelling around wound, no discharge
+        reviewStatus:
+          type: string
+          enum: [PENDING_REVIEW, REVIEWED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    SymptomReportCreate:
+      type: object
+      required: [appointmentReportId, response]
+      properties:
+        appointmentReportId:
+          type: string
+          format: uuid
+        response:
+          type: string
+        source:
+          type: string
+          enum: [SCHEDULE_REQUIRED, PATIENT_INITIATED]
+          default: PATIENT_INITIATED

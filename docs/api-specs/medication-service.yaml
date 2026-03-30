@@ -1,0 +1,420 @@
+openapi: 3.0.3
+info:
+  title: Medication Service API
+  description: |
+    Manages medication catalog, prescriptions, prescription items, and medication schedules.
+    Protocol: REST (client-facing), gRPC (internal - GetMedicationSchedule)
+    Kafka events consumed:
+      - appointment_report.created → creates MedicationSchedule for each PrescriptionItem
+    Kafka events published:
+      - medication_schedule.due → consumer: Notification Service
+      - medication_schedule.missed → consumer: Notification Service
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5005
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /medications:
+    get:
+      summary: Get all medications
+      operationId: getAllMedications
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+        - in: query
+          name: form
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of medications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Medication'
+
+    post:
+      summary: Create a new medication
+      operationId: createMedication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicationCreate'
+      responses:
+        '201':
+          description: Medication created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+
+  /medications/{id}:
+    get:
+      summary: Get medication by ID
+      operationId: getMedicationById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Medication found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Medication'
+        '404':
+          description: Medication not found
+
+  /prescriptions:
+    post:
+      summary: Create a new prescription
+      operationId: createPrescription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionCreate'
+      responses:
+        '201':
+          description: Prescription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+
+  /prescriptions/{id}:
+    get:
+      summary: Get prescription by ID
+      operationId: getPrescriptionById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prescription found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prescription'
+        '404':
+          description: Prescription not found
+
+  /prescriptions/{id}/items:
+    get:
+      summary: Get all items in a prescription
+      operationId: getPrescriptionItems
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of prescription items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PrescriptionItem'
+
+    post:
+      summary: Add an item to a prescription
+      operationId: addPrescriptionItem
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrescriptionItemCreate'
+      responses:
+        '201':
+          description: Prescription item added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrescriptionItem'
+
+  /schedules:
+    get:
+      summary: Get medication schedules by prescription item
+      operationId: getMedicationSchedules
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: prescriptionItemId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of medication schedules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MedicationSchedule'
+
+  /schedules/{id}/confirm:
+    put:
+      summary: Confirm a medication schedule
+      description: |
+        Patient presses confirm after uploading MediaEvidence.
+        System checks that at least one MediaEvidence exists for this schedule before confirming.
+        Updates status to CONFIRMED if evidence exists, otherwise returns 400.
+      operationId: confirmMedicationSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Schedule confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicationSchedule'
+        '400':
+          description: No media evidence uploaded yet
+        '404':
+          description: Schedule not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Medication:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Amoxicillin 500mg
+        description:
+          type: string
+        manufacturer:
+          type: string
+          example: Pharmedic
+        countryOfOrigin:
+          type: string
+          example: Vietnam
+        form:
+          type: string
+          example: tablet
+        unit:
+          type: string
+          example: tablet
+        price:
+          type: number
+          format: float
+          example: 5000
+        imageUrl:
+          type: string
+        factsImageUrl:
+          type: string
+        videoUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+
+    MedicationCreate:
+      type: object
+      required: [name, form, unit]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        manufacturer:
+          type: string
+        countryOfOrigin:
+          type: string
+        form:
+          type: string
+        unit:
+          type: string
+        price:
+          type: number
+          format: float
+        imageUrl:
+          type: string
+        factsImageUrl:
+          type: string
+        videoUrl:
+          type: string
+        note:
+          type: string
+
+    Prescription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        appointmentReportId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+
+    PrescriptionCreate:
+      type: object
+      required: [appointmentReportId]
+      properties:
+        appointmentReportId:
+          type: string
+          format: uuid
+        note:
+          type: string
+
+    PrescriptionItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        prescriptionId:
+          type: string
+          format: uuid
+        medicationId:
+          type: string
+          format: uuid
+        dosage:
+          type: string
+          example: 500mg
+        frequency:
+          type: string
+          example: 3 times per day
+        duration:
+          type: string
+          example: 7 days
+        usageInstruction:
+          type: string
+          example: Take after meals with water
+        note:
+          type: string
+
+    PrescriptionItemCreate:
+      type: object
+      required: [medicationId, dosage, frequency, duration]
+      properties:
+        medicationId:
+          type: string
+          format: uuid
+        dosage:
+          type: string
+        frequency:
+          type: string
+        duration:
+          type: string
+        usageInstruction:
+          type: string
+        note:
+          type: string
+
+    MedicationSchedule:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        prescriptionItemId:
+          type: string
+          format: uuid
+        scheduledTime:
+          type: string
+          format: time
+          example: "08:00"
+        scheduleDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, MISSED]
+        confirmedAt:
+          type: string
+          format: date-time
+        note:
+          type: string

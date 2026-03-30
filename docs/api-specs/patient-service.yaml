@@ -1,0 +1,178 @@
+openapi: 3.0.3
+info:
+  title: Patient Service API
+  description: |
+    Manages patient profiles including health metrics.
+    Protocol: REST (client-facing), gRPC (internal - GetPatient)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5002
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /patients:
+    get:
+      summary: Get all patients
+      operationId: getAllPatients
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: name
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of patients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Patient'
+
+    post:
+      summary: Create a new patient profile
+      operationId: createPatient
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientCreate'
+      responses:
+        '201':
+          description: Patient created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+
+  /patients/{id}:
+    get:
+      summary: Get patient by ID
+      operationId: getPatientById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Patient found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '404':
+          description: Patient not found
+
+    put:
+      summary: Update patient profile
+      operationId: updatePatient
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientUpdate'
+      responses:
+        '200':
+          description: Patient updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '404':
+          description: Patient not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Patient:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        height:
+          type: number
+          format: float
+          example: 170.5
+        weight:
+          type: number
+          format: float
+          example: 65.0
+        bloodType:
+          type: string
+          enum: [A, B, AB, O]
+
+    PatientCreate:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        height:
+          type: number
+          format: float
+        weight:
+          type: number
+          format: float
+        bloodType:
+          type: string
+          enum: [A, B, AB, O]
+
+    PatientUpdate:
+      type: object
+      properties:
+        height:
+          type: number
+          format: float
+        weight:
+          type: number
+          format: float
+        bloodType:
+          type: string
+          enum: [A, B, AB, O]

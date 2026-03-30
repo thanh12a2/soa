@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: Auth Service API
+  description: |
+    Handles user registration, login, and role-based access control.
+    Protocol: REST (client-facing), gRPC (internal - VerifyToken)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5001
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /auth/register:
+    post:
+      summary: Register a new user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input
+        '409':
+          description: Username or email already exists
+
+  /auth/login:
+    post:
+      summary: Login and receive JWT token
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      summary: Logout and invalidate token
+      operationId: logoutUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logged out successfully
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Name:
+      type: object
+      properties:
+        firstName:
+          type: string
+        middleName:
+          type: string
+        lastName:
+          type: string
+
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+        district:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        dayOfBirth:
+          type: string
+          format: date
+        phoneNumber:
+          type: string
+        name:
+          $ref: '#/components/schemas/Name'
+        address:
+          $ref: '#/components/schemas/Address'
+        role:
+          type: string
+          enum: [PATIENT, DOCTOR, STAFF]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+        note:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UserCreate:
+      type: object
+      required: [username, password, email, role, name]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        email:
+          type: string
+          format: email
+        dayOfBirth:
+          type: string
+          format: date
+        phoneNumber:
+          type: string
+        name:
+          $ref: '#/components/schemas/Name'
+        address:
+          $ref: '#/components/schemas/Address'
+        role:
+          type: string
+          enum: [PATIENT, DOCTOR, STAFF]
+        note:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'

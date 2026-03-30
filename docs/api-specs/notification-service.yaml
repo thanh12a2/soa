@@ -1,0 +1,127 @@
+openapi: 3.0.3
+info:
+  title: Notification Service API
+  description: |
+    Delivers medication reminders and notifications to patients and doctors.
+    Protocol: REST (client-facing), gRPC (internal)
+    Kafka events consumed:
+      - medication_schedule.due → sends reminder to patient
+      - medication_schedule.missed → alerts doctor
+      - symptom_report.created → alerts doctor to review
+      - follow_up_request.created → notifies patient
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5007
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /notifications/{recipientId}:
+    get:
+      summary: Get all notifications for a recipient
+      operationId: getNotificationsByRecipient
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: recipientId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [REMINDER, MISSED_ALERT, SYMPTOM_ALERT, FOLLOW_UP]
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [SENT, READ, FAILED]
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+
+  /notifications/{id}/read:
+    put:
+      summary: Mark a notification as read
+      operationId: markNotificationRead
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          description: Notification not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        recipientId:
+          type: string
+          format: uuid
+          description: patientId or doctorId depending on notification type
+        type:
+          type: string
+          enum: [REMINDER, MISSED_ALERT, SYMPTOM_ALERT, FOLLOW_UP]
+        title:
+          type: string
+          example: Medication Reminder
+        message:
+          type: string
+          example: It's time to take your Amoxicillin 500mg
+        referenceId:
+          type: string
+          format: uuid
+          description: ID of related entity (MedicationSchedule, SymptomReport, FollowUpRequest)
+        status:
+          type: string
+          enum: [SENT, READ, FAILED]
+        sentAt:
+          type: string
+          format: date-time

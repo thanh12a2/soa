@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Microservices Starter</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4efe6;
+        --panel: #fffaf2;
+        --ink: #1c1a17;
+        --accent: #b85c38;
+        --muted: #6b6257;
+        font-family: "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top, rgba(184, 92, 56, 0.18), transparent 30%),
+          linear-gradient(180deg, var(--bg), #efe4d3);
+        color: var(--ink);
+      }
+
+      main {
+        max-width: 820px;
+        margin: 48px auto;
+        padding: 24px;
+      }
+
+      .panel {
+        background: rgba(255, 250, 242, 0.88);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(184, 92, 56, 0.18);
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 18px 40px rgba(78, 53, 35, 0.08);
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: clamp(2rem, 5vw, 3.5rem);
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        background: var(--accent);
+        color: white;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      pre {
+        overflow: auto;
+        padding: 16px;
+        border-radius: 12px;
+        background: #201a17;
+        color: #f7efe5;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <p class="muted">Microservices assignment starter</p>
+        <h1>Frontend is running.</h1>
+        <p>This placeholder UI calls the gateway so you can verify the whole Docker Compose stack is alive.</p>
+        <button id="check">Check gateway health</button>
+        <pre id="output">Waiting for request...</pre>
+      </section>
+    </main>
+    <script>
+      const output = document.getElementById('output');
+      const button = document.getElementById('check');
+
+      const runCheck = async () => {
+        output.textContent = 'Loading...';
+        try {
+          const response = await fetch('/api/gateway-health');
+          const text = await response.text();
+          output.textContent = text;
+        } catch (error) {
+          output.textContent = `Request failed: ${error.message}`;
+        }
+      };
+
+      button.addEventListener('click', runCheck);
+    </script>
+  </body>
+</html>

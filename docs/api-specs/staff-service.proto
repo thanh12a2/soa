@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package staff;
+
+option java_package = "com.healthcare.staff";
+option java_outer_classname = "StaffProto";
+
+// -------------------------------------------------------
+// gRPC — internal service-to-service
+// -------------------------------------------------------
+service StaffService {
+  rpc GetStaff(GetStaffRequest) returns (StaffResponse);
+}
+
+message GetStaffRequest {
+  string staff_id = 1;
+}
+
+message StaffResponse {
+  string id = 1;
+  string user_id = 2;
+  string hospital_id = 3;
+  string type = 4;           // DOCTOR, HOSPITAL_STAFF
+  string specialization = 5; // only for DOCTOR
+  string department = 6;     // only for HOSPITAL_STAFF
+}

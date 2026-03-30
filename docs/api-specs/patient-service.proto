@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package patient;
+
+option java_package = "com.healthcare.patient";
+option java_outer_classname = "PatientProto";
+
+// -------------------------------------------------------
+// gRPC — internal service-to-service
+// -------------------------------------------------------
+service PatientService {
+  rpc GetPatient(GetPatientRequest) returns (PatientResponse);
+}
+
+message GetPatientRequest {
+  string patient_id = 1;
+}
+
+message PatientResponse {
+  string id = 1;
+  string user_id = 2;
+  float height = 3;
+  float weight = 4;
+  string blood_type = 5; // A, B, AB, O
+}

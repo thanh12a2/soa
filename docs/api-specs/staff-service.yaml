@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: Staff Service API
+  description: |
+    Manages MedicalStaff, Doctor, and HospitalStaff profiles.
+    Protocol: REST (client-facing), gRPC (internal - GetStaff)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5003
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /staff:
+    get:
+      summary: Get all medical staff
+      operationId: getAllStaff
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: [DOCTOR, HOSPITAL_STAFF]
+        - in: query
+          name: hospitalId
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of medical staff
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MedicalStaff'
+
+  /staff/{id}:
+    get:
+      summary: Get staff by ID
+      operationId: getStaffById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Staff found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalStaff'
+        '404':
+          description: Staff not found
+
+  /staff/doctors:
+    post:
+      summary: Create a doctor profile
+      operationId: createDoctor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DoctorCreate'
+      responses:
+        '201':
+          description: Doctor created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Doctor'
+
+  /staff/hospital-staff:
+    post:
+      summary: Create a hospital staff profile
+      operationId: createHospitalStaff
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HospitalStaffCreate'
+      responses:
+        '201':
+          description: Hospital staff created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HospitalStaff'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    MedicalStaff:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        hospitalId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [DOCTOR, HOSPITAL_STAFF]
+
+    Doctor:
+      allOf:
+        - $ref: '#/components/schemas/MedicalStaff'
+        - type: object
+          properties:
+            specialization:
+              type: string
+              example: Dermatology
+
+    HospitalStaff:
+      allOf:
+        - $ref: '#/components/schemas/MedicalStaff'
+        - type: object
+          properties:
+            department:
+              type: string
+              example: Outpatient Department
+
+    DoctorCreate:
+      type: object
+      required: [userId, hospitalId, specialization]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        hospitalId:
+          type: string
+          format: uuid
+        specialization:
+          type: string
+
+    HospitalStaffCreate:
+      type: object
+      required: [userId, hospitalId, department]
+      properties:
+        userId:
+          type: string
+          format: uuid
+        hospitalId:
+          type: string
+          format: uuid
+        department:
+          type: string

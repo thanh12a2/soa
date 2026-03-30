@@ -1,0 +1,398 @@
+openapi: 3.0.3
+info:
+  title: Appointment Service API
+  description: |
+    Manages appointments, appointment reports, and follow-up requests.
+    Protocol: REST (client-facing), gRPC (internal - GetAppointment)
+    Kafka events published:
+      - appointment_report.created → consumers: Medication Service, Monitoring Service
+      - follow_up_request.created → consumer: Notification Service
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5004
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /appointments:
+    get:
+      summary: Get all appointments
+      operationId: getAllAppointments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: patientId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: doctorId
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [SCHEDULED, COMPLETED, CANCELLED]
+      responses:
+        '200':
+          description: List of appointments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Appointment'
+
+    post:
+      summary: Create a new appointment
+      operationId: createAppointment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCreate'
+      responses:
+        '201':
+          description: Appointment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+
+  /appointments/{id}:
+    get:
+      summary: Get appointment by ID
+      operationId: getAppointmentById
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Appointment found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '404':
+          description: Appointment not found
+
+    put:
+      summary: Update appointment
+      operationId: updateAppointment
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentUpdate'
+      responses:
+        '200':
+          description: Appointment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+
+  /appointments/{id}/report:
+    get:
+      summary: Get appointment report
+      operationId: getAppointmentReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Appointment report found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentReport'
+        '404':
+          description: Report not found
+
+    post:
+      summary: Create appointment report
+      description: |
+        Creates an appointment report.
+        Publishes Kafka event: appointment_report.created
+        Consumer 1 - Medication Service: creates MedicationSchedule for each PrescriptionItem
+        Consumer 2 - Monitoring Service: stores AppointmentReportRef to enable patient SymptomReport submission
+      operationId: createAppointmentReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentReportCreate'
+      responses:
+        '201':
+          description: Report created and Kafka event published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentReport'
+
+  /appointments/{id}/follow-up:
+    get:
+      summary: Get follow-up requests for an appointment
+      operationId: getFollowUpRequests
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of follow-up requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FollowUpRequest'
+
+    post:
+      summary: Create a follow-up request
+      description: |
+        Creates a follow-up request.
+        Publishes Kafka event: follow_up_request.created
+        Consumer: Notification Service — notifies patient
+      operationId: createFollowUpRequest
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FollowUpRequestCreate'
+      responses:
+        '201':
+          description: Follow-up request created and Kafka event published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FollowUpRequest'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        patientId:
+          type: string
+          format: uuid
+        createdBy:
+          type: string
+          format: uuid
+        appointmentDate:
+          type: string
+          format: date
+        startTime:
+          type: string
+          format: time
+          example: "09:00"
+        endTime:
+          type: string
+          format: time
+          example: "09:30"
+        status:
+          type: string
+          enum: [SCHEDULED, COMPLETED, CANCELLED]
+        note:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AppointmentCreate:
+      type: object
+      required: [patientId, appointmentDate, startTime, endTime]
+      properties:
+        patientId:
+          type: string
+          format: uuid
+        appointmentDate:
+          type: string
+          format: date
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: string
+          format: time
+        note:
+          type: string
+
+    AppointmentUpdate:
+      type: object
+      properties:
+        appointmentDate:
+          type: string
+          format: date
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: string
+          format: time
+        status:
+          type: string
+          enum: [SCHEDULED, COMPLETED, CANCELLED]
+        note:
+          type: string
+
+    AppointmentReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        appointmentId:
+          type: string
+          format: uuid
+        diagnosisName:
+          type: string
+          example: Ingrown toenail (Onychocryptosis)
+        diagnosisDescription:
+          type: string
+          example: Nail edge growing into surrounding skin tissue
+        treatmentMethod:
+          type: string
+          example: Minor surgery
+        treatmentDescription:
+          type: string
+          example: Partial nail avulsion under local anesthesia
+        note:
+          type: string
+
+    AppointmentReportCreate:
+      type: object
+      required: [diagnosisName, treatmentMethod]
+      properties:
+        diagnosisName:
+          type: string
+        diagnosisDescription:
+          type: string
+        treatmentMethod:
+          type: string
+        treatmentDescription:
+          type: string
+        note:
+          type: string
+
+    FollowUpRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        appointmentId:
+          type: string
+          format: uuid
+        requestedBy:
+          type: string
+          format: uuid
+        requestedDate:
+          type: string
+          format: date
+        requestType:
+          type: string
+          enum: [PATIENT_INITIATED, DOCTOR_INITIATED, SYSTEM_GENERATED]
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, ACKNOWLEDGED, SCHEDULED]
+        note:
+          type: string
+
+    FollowUpRequestCreate:
+      type: object
+      required: [requestType, reason]
+      properties:
+        requestType:
+          type: string
+          enum: [PATIENT_INITIATED, DOCTOR_INITIATED, SYSTEM_GENERATED]
+        requestedDate:
+          type: string
+          format: date
+        reason:
+          type: string
+        note:
+          type: string

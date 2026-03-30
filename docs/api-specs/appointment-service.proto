@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package appointment;
+
+option java_package = "com.healthcare.appointment";
+option java_outer_classname = "AppointmentProto";
+
+// -------------------------------------------------------
+// gRPC — internal service-to-service
+// -------------------------------------------------------
+service AppointmentService {
+  rpc GetAppointment(GetAppointmentRequest) returns (AppointmentResponse);
+}
+
+message GetAppointmentRequest {
+  string appointment_id = 1;
+}
+
+message AppointmentResponse {
+  string id = 1;
+  string patient_id = 2;
+  string created_by = 3;
+  string appointment_date = 4;
+  string start_time = 5;
+  string end_time = 6;
+  string status = 7; // SCHEDULED, COMPLETED, CANCELLED
+}
+
+// -------------------------------------------------------
+// Kafka Events (published by Appointment Service)
+// -------------------------------------------------------
+
+// Topic: appointment_report.created
+// Producer: Appointment Service
+// Consumer 1: Medication Service — creates MedicationSchedule for each PrescriptionItem
+// Consumer 2: Monitoring Service — stores AppointmentReportRef to allow SymptomReport submission
+message AppointmentReportCreatedEvent {
+  string appointment_report_id = 1;
+  string appointment_id = 2;
+  string prescription_id = 3;
+  string patient_id = 4;
+  string created_at = 5;
+}
+
+// Topic: follow_up_request.created
+// Producer: Appointment Service
+// Consumer: Notification Service — notifies patient of follow-up request
+message FollowUpRequestCreatedEvent {
+  string follow_up_request_id = 1;
+  string appointment_id = 2;
+  string patient_id = 3;
+  string request_type = 4; // PATIENT_INITIATED, DOCTOR_INITIATED, SYSTEM_GENERATED
+  string reason = 5;
+  string requested_date = 6;
+}

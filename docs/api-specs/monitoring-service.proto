@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package monitoring;
+
+option java_package = "com.healthcare.monitoring";
+option java_outer_classname = "MonitoringProto";
+
+// -------------------------------------------------------
+// gRPC — internal service-to-service
+// -------------------------------------------------------
+service MonitoringService {
+  rpc GetMissedSchedules(GetMissedRequest) returns (GetMissedResponse);
+}
+
+message GetMissedRequest {
+  string patient_id = 1;
+}
+
+message MissedSchedule {
+  string schedule_id = 1;
+  string prescription_item_id = 2;
+  string scheduled_time = 3;
+  string schedule_date = 4;
+  string medication_name = 5;
+}
+
+message GetMissedResponse {
+  repeated MissedSchedule missed_schedules = 1;
+}
+
+// -------------------------------------------------------
+// Kafka Events
+// -------------------------------------------------------
+
+// Topic: appointment_report.created
+// Producer: Appointment Service
+// Consumer: Monitoring Service
+// Action: stores AppointmentReportRef locally so patient can submit SymptomReport
+//         at any time without cross-service validation calls to Appointment Service
+message AppointmentReportCreatedEvent {
+  string appointment_report_id = 1;
+  string appointment_id = 2;
+  string patient_id = 3;
+  string created_at = 4;
+}
+
+// Topic: symptom_report.created
+// Producer: Monitoring Service
+// Consumer: Notification Service
+// Action: alerts doctor to review patient symptom report
+message SymptomReportCreatedEvent {
+  string symptom_report_id = 1;
+  string patient_id = 2;
+  string doctor_id = 3;
+  string source = 4;       // SCHEDULE_REQUIRED, PATIENT_INITIATED
+  string created_at = 5;
+}

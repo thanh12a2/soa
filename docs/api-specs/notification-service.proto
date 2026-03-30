@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package notification;
+
+option java_package = "com.healthcare.notification";
+option java_outer_classname = "NotificationProto";
+
+// -------------------------------------------------------
+// gRPC — internal service-to-service
+// -------------------------------------------------------
+service NotificationService {
+  rpc SendReminder(SendReminderRequest) returns (NotificationResponse);
+  rpc SendFollowUpNotification(SendFollowUpRequest) returns (NotificationResponse);
+}
+
+message SendReminderRequest {
+  string patient_id = 1;
+  string schedule_id = 2;
+  string message = 3;
+}
+
+message SendFollowUpRequest {
+  string patient_id = 1;
+  string follow_up_request_id = 2;
+  string message = 3;
+}
+
+message NotificationResponse {
+  string id = 1;
+  string recipient_id = 2;
+  string type = 3;       // REMINDER, MISSED_ALERT, SYMPTOM_ALERT, FOLLOW_UP
+  string title = 4;
+  string message = 5;
+  string reference_id = 6;
+  string status = 7;     // SENT, READ, FAILED
+  string sent_at = 8;
+}
+
+// -------------------------------------------------------
+// Kafka Events (consumed by Notification Service)
+// -------------------------------------------------------
+
+// Topic: medication_schedule.due
+// Producer: Medication Service
+// Consumer: Notification Service
+// Action: sends medication/dressing change reminder to patient
+message MedicationScheduleDueEvent {
+  string schedule_id = 1;
+  string patient_id = 2;
+  string medication_name = 3;
+  string scheduled_time = 4;
+  string schedule_date = 5;
+}
+
+// Topic: medication_schedule.missed
+// Producer: Medication Service
+// Consumer: Notification Service
+// Action: alerts doctor when patient misses a scheduled medication or dressing change
+message MedicationScheduleMissedEvent {
+  string schedule_id = 1;
+  string patient_id = 2;
+  string doctor_id = 3;
+  string medication_name = 4;
+  string scheduled_time = 5;
+  string schedule_date = 6;
+}
+
+// Topic: symptom_report.created
+// Producer: Monitoring Service
+// Consumer: Notification Service
+// Action: alerts doctor to review patient symptom report
+message SymptomReportCreatedEvent {
+  string symptom_report_id = 1;
+  string patient_id = 2;
+  string doctor_id = 3;
+  string source = 4;     // SCHEDULE_REQUIRED, PATIENT_INITIATED
+  string created_at = 5;
+}
+
+// Topic: follow_up_request.created
+// Producer: Appointment Service
+// Consumer: Notification Service
+// Action: notifies patient of follow-up request from doctor or system
+message FollowUpRequestCreatedEvent {
+  string follow_up_request_id = 1;
+  string appointment_id = 2;
+  string patient_id = 3;
+  string request_type = 4; // PATIENT_INITIATED, DOCTOR_INITIATED, SYSTEM_GENERATED
+  string reason = 5;
+  string requested_date = 6;
+}
